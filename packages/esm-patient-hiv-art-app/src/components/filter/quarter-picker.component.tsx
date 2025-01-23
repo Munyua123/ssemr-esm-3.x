@@ -94,7 +94,7 @@ const QuarterPickerComponent = ({ changeCallback }) => {
 
   return (
     <div className={styles.quarterPickerParent}>
-      <select onChange={handleYearChange} value={quarter} name="Year" id="year">
+      <select onChange={handleYearChange} value={year} name="Year" id="year">
         {yearOptions.map((option, index) => (
           <option key={index} {...option}>
             {option.label}
