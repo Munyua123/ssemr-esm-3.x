@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import styles from "./vl-eligibility.scss";
 import { useTranslation } from "react-i18next";
 import {
-  StructuredListSkeleton,
   Tile,
   DataTable,
   Table,
@@ -12,10 +11,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  DataTableSkeleton,
 } from "@carbon/react";
 import useObservationData from "../hooks/useObservationData";
 import usePatientData from "../hooks/usePatientData";
 import { useLayoutType } from "@openmrs/esm-framework";
+import {
+  CardHeader,
+  ErrorState,
+  EmptyState,
+} from "@openmrs/esm-patient-common-lib";
 
 export interface ProgramSummaryProps {
   patientUuid: string;
@@ -27,7 +32,8 @@ const ViralLoadEligibility: React.FC<ProgramSummaryProps> = ({
 }) => {
   const { t } = useTranslation();
   const isTablet = useLayoutType() === "tablet";
-
+  const displayText = t("viralLoadHistory", "Viral Load History");
+  const headerTitle = t("viralLoadHistory", "Viral Load History");
   const { flags } = usePatientData(patientUuid);
   const { error, isLoading, eligibilityDetails, data } = useObservationData(
     patientUuid,
@@ -63,17 +69,13 @@ const ViralLoadEligibility: React.FC<ProgramSummaryProps> = ({
   if (isLoading) {
     return (
       <Tile>
-        <StructuredListSkeleton role="progressbar" />
+        <DataTableSkeleton role="progressbar" compact={!isTablet} zebra />
       </Tile>
     );
   }
 
   if (error) {
-    return (
-      <span style={{ color: "red" }}>
-        {t("errorPatientSummary", "Error loading Patient summary")}
-      </span>
-    );
+    return <ErrorState error={error} headerTitle={headerTitle} />;
   }
 
   if (!eligibilityDetails) {
@@ -81,49 +83,65 @@ const ViralLoadEligibility: React.FC<ProgramSummaryProps> = ({
   }
 
   return (
-    <div>
-      <DataTable
-        headers={tableHeaders}
-        isSortable
-        overflowMenuOnHover={!isTablet}
-        rows={tableRows}
-        size={isTablet ? "lg" : "sm"}
-        useZebraStyles
-      >
-        {({ rows, headers, getTableProps, getHeaderProps }) => (
-          <TableContainer className={styles.tableContainer}>
-            <Table
-              aria-label="cl-samples"
-              className={styles.table}
-              {...getTableProps()}
-            >
-              <TableHead>
-                <TableRow>
-                  {headers.map((header) => (
-                    <TableHeader
-                      {...getHeaderProps({ header })}
-                      key={header.key}
+    <>
+      {(() => {
+        if (tableRows?.length) {
+          return (
+            <div>
+              <CardHeader title={headerTitle} children={""} />
+              <DataTable
+                headers={tableHeaders}
+                isSortable
+                overflowMenuOnHover={!isTablet}
+                rows={tableRows}
+                size={isTablet ? "lg" : "sm"}
+                useZebraStyles
+              >
+                {({ rows, headers, getTableProps, getHeaderProps }) => (
+                  <TableContainer className={styles.tableContainer}>
+                    <Table
+                      aria-label="cl-samples"
+                      className={styles.table}
+                      {...getTableProps()}
                     >
-                      {header.header}
-                    </TableHeader>
-                  ))}
-                  <TableHeader aria-label={t("actions", "Actions")} />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.cells.map((cell) => {
-                      return <TableCell key={cell.id}>{cell.value}</TableCell>;
-                    })}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </DataTable>
-    </div>
+                      <TableHead>
+                        <TableRow>
+                          {headers.map((header) => (
+                            <TableHeader
+                              {...getHeaderProps({ header })}
+                              key={header.key}
+                            >
+                              {header.header}
+                            </TableHeader>
+                          ))}
+                          <TableHeader aria-label={t("actions", "Actions")} />
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {rows.map((row) => (
+                          <TableRow key={row.id}>
+                            {row.cells.map((cell) => {
+                              return (
+                                <TableCell key={cell.id}>
+                                  {cell.value}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </DataTable>
+            </div>
+          );
+        }
+        return (
+          <EmptyState displayText={displayText} headerTitle={headerTitle} />
+        );
+      })()}
+    </>
   );
 };
 export default ViralLoadEligibility;
