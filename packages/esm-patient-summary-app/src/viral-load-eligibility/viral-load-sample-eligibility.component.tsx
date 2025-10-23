@@ -15,12 +15,19 @@ import {
 } from "@carbon/react";
 import useObservationData from "../hooks/useObservationData";
 import usePatientData from "../hooks/usePatientData";
-import { useLayoutType } from "@openmrs/esm-framework";
+import {
+  useConfig,
+  useLayoutType,
+  openmrsFetch,
+  restBaseUrl,
+} from "@openmrs/esm-framework";
 import {
   CardHeader,
   ErrorState,
   EmptyState,
 } from "@openmrs/esm-patient-common-lib";
+import type { ConfigObject } from "../config-schema";
+import type { VLRow } from "../types";
 
 export interface ProgramSummaryProps {
   patientUuid: string;
@@ -32,10 +39,14 @@ const ViralLoadEligibility: React.FC<ProgramSummaryProps> = ({
 }) => {
   const { t } = useTranslation();
   const isTablet = useLayoutType() === "tablet";
+
+  const config = useConfig<ConfigObject>();
+
   const displayText = t("viralLoadHistory", "Viral Load History");
   const headerTitle = t("viralLoadHistory", "Viral Load History");
+
   const { flags } = usePatientData(patientUuid);
-  const { error, isLoading, eligibilityDetails, data } = useObservationData(
+  const { error, isLoading, eligibilityDetails } = useObservationData(
     patientUuid,
     flags
   );
@@ -55,16 +66,56 @@ const ViralLoadEligibility: React.FC<ProgramSummaryProps> = ({
   }, [eligibilityDetails, t]);
 
   useEffect(() => {
-    if (data?.results?.length) {
-      const rows = data.results.map((item, index) => ({
-        id: `row-${index}`,
-        dateSampleCollected: item.dateVLSampleCollected ?? "---",
-        dateVLRecieved: item.dateVLResultsReceived ?? "---",
-        lastVlRecieved: item.vlResults ?? "---",
-      }));
-      setTableRows(rows);
+    async function fetchVLObs() {
+      const conceptUuids = [
+        config.concepts.dateCollected,
+        config.concepts.dateVLResultsReceived,
+        config.concepts.viralLoadValue,
+      ].join(",");
+
+      const response = await openmrsFetch(
+        `${restBaseUrl}/obs?patient=${patientUuid}&concepts=${conceptUuids}&v=full`
+      );
+
+      const results = response.data.results ?? [];
+
+      results.sort(
+        (a, b) =>
+          new Date(b.obsDatetime).getTime() - new Date(a.obsDatetime).getTime()
+      );
+
+      const rowsMap = new Map<string, VLRow>();
+
+      results.forEach((obs) => {
+        const key = obs.obsDatetime;
+
+        if (!rowsMap.has(key)) {
+          rowsMap.set(key, {
+            id: `row-${rowsMap.size}`,
+            dateSampleCollected: "---",
+            dateVLRecieved: "---",
+            lastVlRecieved: "---",
+          });
+        }
+
+        const row = rowsMap.get(key)!;
+
+        if (obs.concept.uuid === config.concepts.dateCollected) {
+          row.dateSampleCollected = obs.value ?? "---";
+        } else if (obs.concept.uuid === config.concepts.dateVLResultsReceived) {
+          row.dateVLRecieved = obs.value ?? "---";
+        } else if (obs.concept.uuid === config.concepts.viralLoadValue) {
+          row.lastVlRecieved = obs.value ?? "---";
+        }
+      });
+
+      setTableRows([...rowsMap.values()]);
     }
-  }, [data]);
+
+    if (patientUuid && config?.concepts) {
+      fetchVLObs();
+    }
+  }, [patientUuid, config]);
 
   if (isLoading) {
     return (
